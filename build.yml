@@ -1,0 +1,27 @@
+name: Build Windows exe
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Get LLVC and its pretrained model
+        shell: pwsh
+        run: |
+          git clone https://github.com/KoeAI/LLVC LLVC
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -r LLVC/requirements.txt
+          pip install sounddevice numpy pyinstaller
+          cd LLVC; python download_models.py; cd ..
+          Get-ChildItem LLVC -Recurse -Include *.pth,config.json | Select-Object -ExpandProperty FullName
+      - name: Build
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --onedir --windowed --name LLVCVoiceChanger `
+            --paths LLVC --hidden-import infer --hidden-import model --hidden-import cached_convnet --hidden-import utils `
+            --collect-all torchaudio --add-data "LLVC;LLVC" app.py
+          Compress-Archive dist/LLVCVoiceChanger LLVCVoiceChanger.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: LLVCVoiceChanger, path: LLVCVoiceChanger.zip }
